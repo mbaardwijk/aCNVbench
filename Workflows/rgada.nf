@@ -47,21 +47,38 @@ process ConvertRGadaCNVs  {
     publishDir "${params.resultsDir}/CNVs/R-GADA", mode:'copy'
 
     input:
-    file cnvFiles
+    each cnvFile
 
     output:
-    path 'results.rgada.txt', emit: callFile
+    tuple path('*.rgada.txt'), env(sample), val("R-GADA"), emit: individualCallFiles
 
     script:
     """
-    files=(`ls -d *_rgada.tsv`)
-    head -n 1 "\${files[0]}" > all.merged.rgada.tsv
+    sample=`(echo ${cnvFile.baseName} | sed "s/_rgada//g")`
+    echo \$sample
+    Rscript ${PWD}/bin/convert_cnv_results.R -r ${cnvFile} -o \$sample
+    """
+}
 
-    for file in \${files[*]}; do
-        tail -n +2 \${file} >> all.merged.rgada.tsv
+process CombineRGadaCNVs {
+    /*  
+    */
+    label 'acnvbench'
+    publishDir "${params.resultsDir}/CNVs/R-GADA", mode:'copy'
+
+    input:
+    path callFile
+
+    output:
+    path "rgada.results.txt", emit: callFile
+
+    script:
+    """
+    callfiles=(*.rgada.txt)
+    head -n 1 "\${callfiles[0]}" > rgada.results.txt
+    for file in \${callfiles[*]}; do
+        tail -n +2 \${file} >>  rgada.results.txt
     done
-
-    Rscript ${PWD}/bin/convert_cnv_results.R -r all.merged.rgada.tsv
     """
 }
 
@@ -74,6 +91,9 @@ workflow RunRGADA {
         RGada(               baflrrFiles,
                              samples )
         ConvertRGadaCNVs(    RGada.out.cnvFile.collect() )
+        callFilePaths = ConvertRGadaCNVs.out.individualCallFiles.map{ callFile, sampleID, platform -> callFile }.collect()
+        CombineRGadaCNVs(    callFilePaths )
     emit:
-        callFile = ConvertRGadaCNVs.out.callFile
+        callFile = CombineRGadaCNVs.out.callFile
+        individualCallFiles = ConvertRGadaCNVs.out.individualCallFiles
 }

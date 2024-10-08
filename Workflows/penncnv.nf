@@ -136,14 +136,17 @@ process ConvertPennCNVs {
     path resultDir
 
     output:
-    path "${resultDir}", emit: resultDir
+    path "${resultDir}_converted", emit: convertedResultDir
 
     script:
     """
-    perl /PennCNV-1.0.5/convert_cnv.pl --intype penncnv --outtype tab ${resultDir}/merged_filtered_all.cnv > ${resultDir}/penncnv_all_cnvs.txt
-    sed -i 's/.baflrr//g' ${resultDir}/penncnv_all_cnvs.txt
-    sed -i 's/.baflrr//g' ${resultDir}/CNV.PennCNV_qc_new.txt
-    cp ${pfbFile} ${resultDir}/SNP.pfb
+    echo "hello"
+    mkdir ${resultDir}_converted
+    cp ${resultDir}/CNV.PennCNV_qc_new.txt ${resultDir}_converted/CNV.PennCNV_qc_new.txt
+    perl /PennCNV-1.0.5/convert_cnv.pl --intype penncnv --outtype tab ${resultDir}/merged_filtered_all.cnv > ${resultDir}_converted/penncnv_all_cnvs.txt
+    sed -i 's/.baflrr//g' ${resultDir}_converted/penncnv_all_cnvs.txt
+    sed -i 's/.baflrr//g' ${resultDir}_converted/CNV.PennCNV_qc_new.txt
+    cp ${pfbFile} ${resultDir}_converted/SNP.pfb
     """
 }
 
@@ -154,14 +157,19 @@ process ConvertPennCNVResults {
     publishDir "${params.resultsDir}/CNVs/PennCNV", mode:'copy'
 
     input:
-    tuple file(reportFile), file(samplesheetFile), file(snpMap), file(genderFile), file(baflrrFiles), file(pfbFile), file(adjustedGcModel)
+    path convertedResultDir
 
     output:
-    path "results.penncnv.txt", emit: callFile
+    path "penncnv.results.txt", emit: callFile
+    path "*_penncnv.txt", emit: individualCallFiles
+    env samples, emit: sampleIDs
 
     script:
     """
-    Rscript ${PWD}/bin/convert_cnv_results.R -p merged_filtered_all.cnv
+    Rscript ${PWD}/bin/convert_cnv_results.R -p ${convertedResultDir}/penncnv_all_cnvs.txt
+    Rscript ${PWD}/bin/split_callset.R --input 'penncnv.results.txt' -s "\t" --output '_penncnv.txt'
+    samples=`(ls *_penncnv.txt | sed "s/_penncnv.txt//g")`
+    echo \$samples
     """
 }
 
@@ -179,8 +187,17 @@ workflow RunPennCNV {
                          DetectCNVs.out.qcLog )
         ConvertPennCNVs( AdjustGCModel.out.adjustedGcModel,
                          FilterCNVs.out.resultDir )
-        ConvertPennCNVResults( FilterCNVs.out.filteredCNVs )
+        ConvertPennCNVResults( ConvertPennCNVs.out.convertedResultDir )
+
+        sampleIDs = ConvertPennCNVResults.out.sampleIDs.splitCsv( sep: " " ) \
+            | flatten()
+        ConvertPennCNVResults.out.individualCallFiles.flatten() \
+            | merge( sampleIDs ) \
+            | combine( Channel.of( "PennCNV"))
+            | set { individualCallFiles}
+
     emit:
         callFile = ConvertPennCNVResults.out.callFile
-        resultsDir = ConvertPennCNVs.out.resultDir
+        individualCallFiles = individualCallFiles
+        resultsDir = ConvertPennCNVs.out.convertedResultDir
 }

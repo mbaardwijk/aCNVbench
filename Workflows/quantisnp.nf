@@ -125,39 +125,39 @@ process CreateResultDir {
     """
 }
 
-process MergeQuantiSNPCNVs {
-    /* Merge CNVs and QC files from quantisnp to single call file
-    */
-    label 'acnvbench'
-    label 'cpu_one'
-    publishDir "${params.resultsDir}/QuantiSNP", mode:'copy'
+// process MergeQuantiSNPCNVs {
+//     /* Merge CNVs and QC files from quantisnp to single call file
+//     */
+//     label 'acnvbench'
+//     label 'cpu_one'
+//     publishDir "${params.resultsDir}/QuantiSNP", mode:'copy'
 
-    input:
-    path resultDir
+//     input:
+//     path resultDir
 
-    output:
-    path 'merged_quantisnp_output/all.merged.quantisnp.qc', emit: mergedQC
-    path 'merged_quantisnp_output/all.merged.quantisnp.cnv', emit: mergedCNVs
+//     output:
+//     path 'merged_quantisnp_output/all.merged.quantisnp.qc', emit: mergedQC
+//     path 'merged_quantisnp_output/all.merged.quantisnp.cnv', emit: mergedCNVs
 
-    script:
-    """
-    mkdir merged_quantisnp_output
-    cd ${resultDir}/res
+//     script:
+//     """
+//     mkdir merged_quantisnp_output
+//     cd ${resultDir}/res
 
-    files=(`ls -d */`)
-    head -n 1 "\${files[0]}\${files[0]%/}.cnv" > all.merged.quantisnp.cnv
-    head -n 1 "\${files[0]}\${files[0]%/}.qc" > all.merged.quantisnp.qc
+//     files=(`ls -d */`)
+//     head -n 1 "\${files[0]}\${files[0]%/}.cnv" > all.merged.quantisnp.cnv
+//     head -n 1 "\${files[0]}\${files[0]%/}.qc" > all.merged.quantisnp.qc
 
-    for file in \${files[*]}; do
-        tail -n +2 \${file}\${file%/}.cnv >> all.merged.quantisnp.cnv
-        tail -n +2 \${file}\${file%/}.qc >> all.merged.quantisnp.qc
-    done
+//     for file in \${files[*]}; do
+//         tail -n +2 \${file}\${file%/}.cnv >> all.merged.quantisnp.cnv
+//         tail -n +2 \${file}\${file%/}.qc >> all.merged.quantisnp.qc
+//     done
 
-    cd ../..
-    mv 'quantisnp_output/res/all.merged.quantisnp.qc' 'merged_quantisnp_output/all.merged.quantisnp.qc'
-    mv 'quantisnp_output/res/all.merged.quantisnp.cnv' 'merged_quantisnp_output/all.merged.quantisnp.cnv'
-    """
-}
+//     cd ../..
+//     mv 'quantisnp_output/res/all.merged.quantisnp.qc' 'merged_quantisnp_output/all.merged.quantisnp.qc'
+//     mv 'quantisnp_output/res/all.merged.quantisnp.cnv' 'merged_quantisnp_output/all.merged.quantisnp.cnv'
+//     """
+// }
 
 process ConvertQuantiSNPCNVs  {
     /*  Convert cnvs to general benchmark format
@@ -167,14 +167,38 @@ process ConvertQuantiSNPCNVs  {
     publishDir "${params.resultsDir}/CNVs/QuantiSNP", mode:'copy'
 
     input:
-    file mergedCNVs
+    each cnvDir
 
     output:
-    path 'results.quantisnp.txt', emit: callFile
+    tuple path('*.quantisnp.txt'), env(sample), val("QuantiSNP"), emit: individualCallFiles
 
     script:
     """
-    Rscript ${PWD}/bin/convert_cnv_results.R -q ${mergedCNVs}
+    sample=`(echo ${cnvDir.baseName} | sed "s/quantisnp_output_//g")`
+    echo \$sample
+    Rscript ${PWD}/bin/convert_cnv_results.R -q ${cnvDir}/*.cnv -o \${sample}
+    """
+}
+
+process CombineQuantiSNPCNVs {
+    /*  
+    */
+    label 'acnvbench'
+    publishDir "${params.resultsDir}/CNVs/QuantiSNP", mode:'copy'
+
+    input:
+    path callFile
+
+    output:
+    path "quantisnp.results.txt", emit: callFile
+
+    script:
+    """
+    callfiles=(*.quantisnp.txt)
+    head -n 1 "\${callfiles[0]}" > quantisnp.results.txt
+    for file in \${callfiles[*]}; do
+        tail -n +2 \${file} >>  quantisnp.results.txt
+    done
     """
 }
 
@@ -190,9 +214,12 @@ workflow RunQuantiSNP {
                                 SetQuantiSNPParameters.out.paramFile,
                                 samples )
         CreateResultDir       ( QuantiSNP.out.outDir.collect() )
-        MergeQuantiSNPCNVs    ( CreateResultDir.out.resultDir )
-        ConvertQuantiSNPCNVs  ( MergeQuantiSNPCNVs.out.mergedCNVs )
+        // MergeQuantiSNPCNVs    ( CreateResultDir.out.resultDir )
+        ConvertQuantiSNPCNVs  ( QuantiSNP.out.outDir.collect() )
+        callFilePaths = ConvertQuantiSNPCNVs.out.individualCallFiles.map{ callFile, sampleID, platform -> callFile }.collect()
+        CombineQuantiSNPCNVs  ( callFilePaths )
     emit:
-        callFile = ConvertQuantiSNPCNVs.out.callFile
+        callFile = CombineQuantiSNPCNVs.out.callFile
+        individualCallFiles = ConvertQuantiSNPCNVs.out.individualCallFiles
         resultsDir = CreateResultDir.out.resultDir
 }

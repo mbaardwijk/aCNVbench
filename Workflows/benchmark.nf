@@ -1,3 +1,22 @@
+process SplitGoldstandardData {
+    /*
+    */
+    container 'mbaardwijk/acnvbench:16-11-2023'
+
+    input:
+    path goldstandardFile
+
+    output:
+    path "*_goldstandard.txt", emit: goldstandardFiles
+    env samples, emit: sampleIDs
+
+    """
+    Rscript ${PWD}/bin/split_callset.R --input '${goldstandardFile}' --output '_goldstandard.txt'
+    samples=`(ls *_goldstandard.txt | sed "s/_goldstandard.txt//g")`
+    echo \$samples
+    """
+}
+
 process CompareCalls {
     /*
     */
@@ -46,7 +65,7 @@ process PlotCNVCounts {
     path "*_CNV_counts.tiff" 
 
     """
-    Rscript ${PWD}/bin/plot.cnv.counts.R --callfiles '${callFiles}' --goldstandard '${goldstandardVcf}' --output ${params.output}
+    Rscript ${PWD}/bin/plot.cnv.counts.heatmap.R --callfiles '${callFiles}' --goldstandard '${goldstandardVcf}' --output ${params.output}
     """
 }
 
@@ -61,7 +80,7 @@ process PlotCNVSize {
     path goldstandardVcf
 
     output:
-    path "aCNVBench_CNV_sizes_*.tiff"
+    path "*_CNV_sizes_unique_log.tiff"
 
     """
     Rscript ${PWD}/bin/plot.cnv.sizes.heatmap.R --callfiles '${callFiles}' --goldstandard '${goldstandardVcf}' --output ${params.output}
@@ -78,7 +97,7 @@ process PlotUpSet {
     path callFiles
 
     output:
-    path "Alt_UpSetPlot_overlap.tiff"
+    path "UpSetPlot_overlap.tiff"
 
     """
     Rscript ${PWD}/bin/plot.upset.overlap.cnv.calls.R --callfiles '${callFiles}' --output ${params.output}
@@ -95,53 +114,59 @@ process PlotPrecisionRecall {
     path performanceFiles
 
     output:
-    path "aCNVBench_overall_precision_recall.tiff"
+    path "aCNVbench_overall_precision_recall.tiff"
 
     """
     Rscript ${PWD}/bin/plot.precision.recall.R --performances '${performanceFiles}' --output ${params.output}
     """    
 }
 
-workflow {
-    Channel .fromPath( params. individualInputSheet ) \
-        | splitCsv(header:true, sep:'\t') \
-        | map { row -> tuple(row.inputFile, row.sampleID, row.platform)} \
-        | set { inputData }
-    Channel .fromPath( params. goldstandardSheet ) \
-        | splitCsv(header:true, sep:'\t') \
-        | map { row -> tuple(row.goldstandardFile, row.sampleID)} \
-        | set { goldstandardData }
-    combinedData = inputData.join(  goldstandardData, by:[1])
-    Channel .fromPath( params. callsetInputSheet ).splitText().map{it -> it.trim()}.collect().set{callsetFiles}
-    callsetFiles.view()
-    Channel .fromPath( params. goldstandardVcf ) \
-        | set { goldstandardVcf }
-    CompareCalls(                   combinedData )
-    results = CompareCalls.out.branch{  sampleID, platformName, resultsFile ->
-                                        penncnv: platformName == "PennCNV"
-                                            return resultsFile
-                                        quantisnp: platformName == "QuantiSNP"
-                                            return resultsFile
-                                        ipattern: platformName == "iPattern"
-                                            return resultsFile
-                                        ensemblecnv: platformName == "EnsembleCNV"
-                                            return resultsFile
-                                        rgada: platformName == "R-GADA"
-                                            return resultsFile
-    }
-    penncnvFiles =                      results.penncnv.collect(sort: true)
-    quantisnpFiles =                    results.quantisnp.collect(sort: true)
-    ipatternFiles =                     results.ipattern.collect(sort: true)
-    ensemblecnvFiles =                  results.ensemblecnv.collect(sort: true)
-    rgadaFiles =                        results.rgada.collect(sort: true)
-    resultFiles = penncnvFiles.concat(  quantisnpFiles, ipatternFiles, ensemblecnvFiles, rgadaFiles )
-    platformNames = Channel.from(       "PennCNV", "QuantiSNP", "iPattern", "EnsembleCNV", "R-GADA" )
-    CombineResults(                     resultFiles,
-                                        platformNames )
-    // PlotPrecisionRecall(                CombineResults.out.collect() )
-    PlotCNVCounts(                      callsetFiles,
-                                        goldstandardVcf )
-    // PlotCNVSize(                        callsetFiles,
-    //                                    goldstandardVcf )
-    PlotUpSet(                          callsetFiles )
+workflow RunBenchmark {
+    take:
+        callFiles
+        individualCallFiles
+
+    main:
+        Channel .fromPath( params. goldstandardFile ) \
+            | set { goldstandardData }
+        
+        SplitGoldstandardData(              goldstandardData )
+        sampleIDs = SplitGoldstandardData.out.sampleIDs.splitCsv( sep: " " ) \
+            | flatten()
+        SplitGoldstandardData.out.goldstandardFiles.flatten() \
+            | merge( sampleIDs ) \
+            | set { goldstandardFiles}
+
+        combinedData = individualCallFiles.combine(  goldstandardFiles, by: 1 )
+        CompareCalls(                   combinedData )
+        results = CompareCalls.out.branch{  sampleID, platformName, resultsFile ->
+                                            penncnv: platformName == "PennCNV"
+                                                return resultsFile
+                                            quantisnp: platformName == "QuantiSNP"
+                                                return resultsFile
+                                            ipattern: platformName == "iPattern"
+                                                return resultsFile
+                                            ensemblecnv: platformName == "EnsembleCNV"
+                                                return resultsFile
+                                            rgada: platformName == "R-GADA"
+                                                return resultsFile
+        }
+        penncnvFiles =                      results.penncnv.collect(sort: true)
+        quantisnpFiles =                    results.quantisnp.collect(sort: true)
+        ipatternFiles =                     results.ipattern.collect(sort: true)
+        ensemblecnvFiles =                  results.ensemblecnv.collect(sort: true)
+        rgadaFiles =                        results.rgada.collect(sort: true)
+        resultFiles = penncnvFiles.concat(  quantisnpFiles, ipatternFiles, ensemblecnvFiles, rgadaFiles )
+        // resultFiles = penncnvFiles.concat(  quantisnpFiles, rgadaFiles )
+
+        platformNames = Channel.from(       "PennCNV", "QuantiSNP", "R-GADA" )
+        CombineResults(                     resultFiles,
+                                            platformNames )                                 
+        PlotPrecisionRecall(                CombineResults.out.collect() )
+        PlotCNVCounts(                      callFiles.collect(),
+                                            goldstandardData )
+        PlotCNVSize(                        callFiles.collect(),
+                                            goldstandardData )
+        callFiles.collect().view()
+        PlotUpSet(                          callFiles.collect() )
 }

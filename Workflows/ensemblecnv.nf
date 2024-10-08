@@ -226,6 +226,7 @@ process SubmitGenotypeJobs {
     */
     label 'ensemblecnv'
     label 'big_mem'
+    time = 48.h
 
     input:
     each job
@@ -287,6 +288,7 @@ process ResubmitGenotypeJobs {
     */
     label 'ensemblecnv'
     label 'big_mem'
+    time = 48.h
 
     input:
     each job
@@ -455,6 +457,7 @@ process SubmitGenotypeAfterRefinementJobs {
     */
     label 'ensemblecnv'
     label 'big_mem'
+    time = 48.h
 
     input:
     each job
@@ -517,6 +520,7 @@ process ResubmitGenotypeAfterRefinementJobs {
     */
     label 'ensemblecnv'
     label 'big_mem'
+    time = 48.h
 
     input:
     each job
@@ -625,13 +629,18 @@ process ConvertEnsembleCNVs  {
     path filteredCNVs
 
     output:
-    path 'results.ensemblecnv.txt', emit: callFile
+    path 'ensemblecnv.results.txt', emit: callFile
+    path "*_ensemblecnv.txt", emit: individualCallFiles
+    env samples, emit: sampleIDs
 
     script:
     """
     Rscript ${PWD}/bin/convert_cnv_results.R \
     --ensemblecnv_matrixcn ${filteredCNVs}/cnvr_after_GQ.txt \
     --ensemblecnv_samplecnv ${filteredCNVs}/matrix_CN_after_GQ.rds
+    Rscript ${PWD}/bin/split_callset.R --input 'ensemblecnv.results.txt' -s "\t" --output '_ensemblecnv.txt'
+    samples=`(ls *_ensemblecnv.txt | sed "s/_ensemblecnv.txt//g")`
+    echo \$samples
     """
 }
 
@@ -700,4 +709,15 @@ workflow RunEnsembleCNV {
                                                 PredictRegenotypeResults.out.predictedRegenotyping )
         FilterOnGQ(                             UpdateGenotypes.out.updatedGenotypes )
         ConvertEnsembleCNVs(                    FilterOnGQ.out.filteredCNVs )
+
+        sampleIDs = ConvertEnsembleCNVs.out.sampleIDs.splitCsv( sep: " " ) \
+            | flatten()
+        ConvertEnsembleCNVs.out.individualCallFiles.flatten() \
+            | merge( sampleIDs ) \
+            | combine( Channel.of( "EnsembleCNV"))
+            | set { individualCallFiles}
+
+    emit:
+        callFile = ConvertEnsembleCNVs.out.callFile
+        individualCallFiles = individualCallFiles
 }

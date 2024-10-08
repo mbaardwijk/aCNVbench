@@ -51,7 +51,7 @@ caller.files <- unlist(strsplit(opt$callfiles, "\\s+"))
 cnv.calls <- data.frame(matrix(ncol = 6, nrow=0, dimnames=list(NULL, c("Sample_ID","Chr", "Start", "End", "Type", "Caller"))))
 for(file in caller.files){
   cnvs <- read.table(file, header=T, sep="\t")
-  cnvs$Caller <- gsub(".mapped.id.txt", "", gsub("results.", "", basename(file)))
+  cnvs$Caller <- gsub(".mapped.id.txt", "", gsub(".results.txt", "", basename(file)))
   cnvs$Caller <- gsub("rgada", "R-GADA", cnvs$Caller)
   cnvs$Caller <- gsub("penncnv", "PennCNV", cnvs$Caller)
   cnvs$Caller <- gsub("quantisnp", "QuantiSNP", cnvs$Caller)
@@ -78,7 +78,6 @@ ensemblecnv <- subset(unique.cnvs, Caller == "EnsembleCNV")
 chrs = (1:22)
 cnv.segments = data.frame(Chr=character(0), Start=numeric(0), End=numeric(0), Type=character(0))
 for(cur.chr in chrs){
-  print(cur.chr)
   segments = data.frame(Chr=character(0), Start=numeric(0), End=numeric(0))
   cnvs.chr = subset(unique.cnvs, Chr == cur.chr)
   breakpoints = unique(c(cnvs.chr$Start, cnvs.chr$End))
@@ -96,14 +95,12 @@ for(cur.chr in chrs){
   # add to all segments
   cnv.segments <- rbind(cnv.segments, all.segments)
 }
-
 cnv.segments$PennCNV <- NA
 cnv.segments$QuantiSNP <- NA
 cnv.segments$iPattern <- NA
 cnv.segments$`R-GADA` <- NA
 cnv.segments$EnsembleCNV <- NA
 cnv.segments$CNV_ID <- paste0(cnv.segments$Chr, ":", cnv.segments$Start, "-", cnv.segments$End, "_", cnv.segments$Type)
-print(unique(cnv.segments$Chr))
 
 # separate deletions and duplications
 cnvrs.dels <- subset(cnv.segments, Type == "DEL")
@@ -112,12 +109,10 @@ cnvrs.subtypes <- list(DEL = cnvrs.dels, DUP = cnvrs.dups)
 
 # for each caller and each cnvr subtype, iterate over cnvs and determine overlap
 for (caller in unique(unique.cnvs$Caller)){
-  print(caller)
   caller.dels <- subset(unique.cnvs, Caller == caller & Type == "DEL")
   caller.dups <- subset(unique.cnvs, Caller == caller & Type == "DUP")
   caller.subtypes <- list(DEL = caller.dels, DUP = caller.dups)
   for (subtype in c("DEL", "DUP")){
-    print(subtype)
     cnvrs.subtype <- cnvrs.subtypes[[subtype]]
     caller.cnvs <- caller.subtypes[[subtype]]
     for (cur.chr in 22:1){
@@ -129,19 +124,18 @@ for (caller in unique(unique.cnvs$Caller)){
                                         wa = T,
                                         f = FRACTION.OVERLAP
       )
-      colnames(overlapping.pairs) <- c("Chr", "Start", "End")
-      overlapping.pairs <- overlapping.pairs[!duplicated(overlapping.pairs),]
-      overlapping.pairs$Type <- subtype
-      overlapping.pairs[[caller]] <- T
-      overlapping.pairs$CNV_ID <- paste0(overlapping.pairs$Chr, ":", overlapping.pairs$Start, "-", overlapping.pairs$End, "_", overlapping.pairs$Type)
-      cnv.segments[[caller]][cnv.segments$CNV_ID %in% overlapping.pairs$CNV_ID] <- T
+      if(nrow(overlapping.pairs) > 0){ # if any overlap is found
+        colnames(overlapping.pairs) <- c("Chr", "Start", "End")
+        overlapping.pairs <- overlapping.pairs[!duplicated(overlapping.pairs),]
+        overlapping.pairs$Type <- subtype
+        overlapping.pairs[[caller]] <- T
+        overlapping.pairs$CNV_ID <- paste0(overlapping.pairs$Chr, ":", overlapping.pairs$Start, "-", overlapping.pairs$End, "_", overlapping.pairs$Type)
+        cnv.segments[[caller]][cnv.segments$CNV_ID %in% overlapping.pairs$CNV_ID] <- T
+      }
     }
   }
 }
-
 cnv.segments$Length <- cnv.segments$End - cnv.segments$Start
-
-print(unique(cnv.segments$Chr))
 
 # set bin size
 breaks <- c(0, 500, 1000, 10000, 100000, 1000000)
@@ -152,7 +146,6 @@ cnv.segments$bin <- cut(cnv.segments$Length,
 
 cnv.segments$bin <- factor(cnv.segments$bin,
                 levels = c("(1e+05,1e+06]", "(1e+04,1e+05]", "(1e+03,1e+04]", "(500,1e+03]", "(0,500]"))
-print(colnames(cnv.segments))
 penncnv.cnvrs <- pull(subset(cnv.segments, PennCNV == T), CNV_ID)
 quantisnp.cnvrs <- pull(subset(cnv.segments, QuantiSNP == T), CNV_ID)
 ipattern.cnvrs <- pull(subset(cnv.segments, iPattern == T), CNV_ID)
@@ -180,8 +173,6 @@ is.na(cnv.segments) <- F
 cnv.segments <- cnv.segments[rowSums(is.na(cnv.segments[,c("PennCNV", "QuantiSNP", "iPattern", "EnsembleCNV", "R-GADA")])) != ncol(cnv.segments[c("PennCNV", "QuantiSNP", "iPattern", "EnsembleCNV", "R-GADA")]), ]
 colnames(cnv.segments)[8] <- "R-GADA"
 
-print(unique(cnv.segments$Chr))
-
 show_hide_scale = scale_color_manual(values=c('show'='white', 'hide'='transparent'), guide='none')
 viridis_colors = viridis(n=length(tags))
 size_scale = scale_fill_manual(values=c(
@@ -190,7 +181,7 @@ size_scale = scale_fill_manual(values=c(
   `(1e+05,1e+06]`=viridis_colors[5]
 ),
 labels = tags)
-tiff("Alt_UpSetPlot_overlap.tiff", units="cm", width=40, height=24, res=600)
+tiff("UpSetPlot_overlap.tiff", units="cm", width=40, height=24, res=600)
 upset(cnv.segments, c("PennCNV", "QuantiSNP", "iPattern", "EnsembleCNV", "R-GADA"), name="Caller",
       width_ratio=0.2,
       keep_empty_groups=F,

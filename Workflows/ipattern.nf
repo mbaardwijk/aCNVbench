@@ -309,7 +309,7 @@ process SplitByGender {
 
     cp -r ${step8Dir}/*.int \${filename#"\$prefix"}_step9/
 
-    python /opt/ipn_0.582/preprocess/ilmn/split_by_gender.py \
+    python ${PWD}/bin/split_by_gender.py \
     -s "\${filename#"\$prefix"}_step9" \
     -d "\${filename#"\$prefix"}_step9" \
 	-g ${genderFile}
@@ -416,11 +416,16 @@ process ConvertIpatternCNVs {
     path allCalls
 
     output:
-    path 'results.ipattern.txt', emit: callFile
+    path "ipattern.results.txt", emit: callFile
+    path "*_ipattern.txt", emit: individualCallFiles
+    env samples, emit: sampleIDs
 
     script:
     """
     Rscript ${PWD}/bin/convert_cnv_results.R -i ${allCalls}
+    Rscript ${PWD}/bin/split_callset.R --input 'ipattern.results.txt' -s "\t" --output '_ipattern.txt'
+    samples=`(ls *_ipattern.txt | sed "s/_ipattern.txt//g")`
+    echo \$samples
     """
 }
 
@@ -451,7 +456,15 @@ workflow RuniPattern {
         CombineIpatternCNVs(       MergeIpatternJobs.out.callFile.collect(),
                                    VarianceNormalization.out.sampleStats.collect() )
         ConvertIpatternCNVs(       CombineIpatternCNVs.out.callFile )
+
+        sampleIDs = ConvertIpatternCNVs.out.sampleIDs.splitCsv( sep: " " ) \
+            | flatten()
+        ConvertIpatternCNVs.out.individualCallFiles.flatten() \
+            | merge( sampleIDs ) \
+            | combine( Channel.of( "iPattern"))
+            | set { individualCallFiles}
     emit:
         callFile = ConvertIpatternCNVs.out.callFile
+        individualCallFiles = individualCallFiles
         resultsDir =  CombineIpatternCNVs.out.resultsDir
 }

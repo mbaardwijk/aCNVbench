@@ -22,17 +22,16 @@ opt = parse_args(OptionParser(option_list = option_list))
 
 convert.penncnv <- function(penncnv.file, outfile) {
   penncnv.data <- read.table(penncnv.file, sep="", header=F)
-  colnames(penncnv.data) <- c("CNV.region","Numsnp", "Length", "CNV.type", "Sample_ID", "startsnp", "endsnp", "conf")
-  penncnv.data <- penncnv.data %>% separate("CNV.region", c("Chr", "Start", "End"), sep = "(:|-)")
-  penncnv.data <- penncnv.data %>% separate("CNV.type", c("State", "Type"), sep = ",")
-  penncnv.data$Type <- gsub("cn=", "", penncnv.data$Type)
+  colnames(penncnv.data) <- c("Chr", "Start", "End", "CN", "Sample_ID", "startsnp", "endsnp", "conf", "numsnp")
+  #colnames(penncnv.data) <- c("CNV.region","Numsnp", "Length", "CNV.type", "Sample_ID", "startsnp", "endsnp", "conf")
+  #penncnv.data$Type <- gsub("cn=", "", penncnv.data$Type)
   penncnv.data$Sample_ID <- gsub(".baflrr", "", penncnv.data$Sample_ID)
+  penncnv.data$Type <- ifelse(penncnv.data$CN > 2, "DUP", ifelse(penncnv.data$CN == 2, "REF", "DEL"))
   penncnv.data <- penncnv.data[c("Sample_ID", "Chr", "Start", "End", "Type")]
-  penncnv.data$Type <- ifelse(penncnv.data$Type > 2, "DUP", ifelse(penncnv.data$Type == 2, "REF", "DEL"))
   # change chromosomes to 'chr' notation if not current
   penncnv.data$Chr <- ifelse(grepl("chr", penncnv.data$Chr), penncnv.data$Chr, paste0("chr", penncnv.data$Chr))
   # write to output file
-  write.table(penncnv.data, paste0(outfile, ".penncnv.txt"), sep="\t", row.names = F, col.names = T, quote=F)
+  write.table(penncnv.data, "penncnv.results.txt", sep="\t", row.names = F, col.names = T, quote=F)
 }
 
 convert.quantisnp <- function(quantisnp.file, outfile) {
@@ -60,7 +59,7 @@ convert.ipattern <- function(ipattern.file, outfile) {
   # change chromosomes to 'chr' notation if not current
   ipattern.data$Chr <- ifelse(grepl("chr", ipattern.data$Chr), ipattern.data$Chr, paste0("chr", ipattern.data$Chr))
   # write to output file  
-  write.table(ipattern.data, paste0(outfile, ".ipattern.txt"), sep="\t", row.names = F, col.names = T, quote=F)
+  write.table(ipattern.data, "ipattern.results.txt", sep="\t", row.names = F, col.names = T, quote=F)
 }
 
 convert.rgada <- function(rgada.file, outfile) {
@@ -69,8 +68,10 @@ convert.rgada <- function(rgada.file, outfile) {
   colnames(rgada.data) <- c("Sample_ID", "Chr", "Start", "End", "Type")
   rgada.data[, c("Start", "End")] <- sapply(rgada.data[, c("Start", "End")], as.numeric)
   rgada.data$Length <- rgada.data$End - rgada.data$Start
+  rgada.data$Sample_ID <- gsub(".baflrr", "", rgada.data$Sample_ID)
   rgada.data[rgada.data$Type == "Gain",]$Type <- "DUP"
   rgada.data[rgada.data$Type == "Loss",]$Type <- "DEL"
+  rgada.data$Sample_ID <- gsub(".baflrr", "", rgada.data$Sample_ID)
   # change chromosomes to 'chr' notation if not current
   rgada.data$Chr <- ifelse(grepl("chr", rgada.data$Chr), rgada.data$Chr, paste0("chr", rgada.data$Chr))
   # write to output file  
@@ -104,7 +105,7 @@ convert.ensemblecnv <- function(ensemblecnv.sample.file, ensemblecnv.cnv.file, o
   # change chromosomes to 'chr' notation if not current
   ensemble.results$Chr <- ifelse(grepl("chr", ensemble.results$Chr), ensemble.results$Chr, paste0("chr", ensemble.results$Chr))
   # write to output file
-  write.table(ensemble.results, paste0(outfile, ".ensemblecnv.txt"), sep="\t", row.names = F, col.names = T, quote=F)
+  write.table(ensemble.results, "ensemblecnv.results.txt", sep="\t", row.names = F, col.names = T, quote=F)
 }
 
 if (!is.na(opt$penncnv)){

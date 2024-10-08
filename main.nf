@@ -6,6 +6,8 @@ include { RunQuantiSNP } from './Workflows/quantisnp'
 include { RuniPattern } from './Workflows/ipattern'
 include { RunRGADA } from './Workflows/rgada'
 include { RunEnsembleCNV } from './Workflows/ensemblecnv'
+include { RunBenchmark } from './Workflows/benchmark'
+
 
 // Retrieve input files and parameters
 Channel .fromPath( params.gcModel ).set{ gcModel }
@@ -98,6 +100,7 @@ workflow {
         | splitCsv(header:true, sep:'\t') \
         | map { row -> tuple(file(row.reportFile), file(row.samplesheetFile), file(row.snpMap) )}
         | set { inputData }
+
     SamplesheetToGenderFile( inputData )
     if(params.chrNames){ /* if only a subset of chromosomes is to be analyzed */
         SliceInputFiles( SamplesheetToGenderFile.out.inputFiles )
@@ -109,34 +112,47 @@ workflow {
     SignalToBaflrr(      SplitIlluminaReport.out.signalFile )
     if(!params.skipPenncnv) {
         RunPennCNV(      SignalToBaflrr.out.baflrrFile )
+        penncnvCalls = RunPennCNV.out.callFile
+        penncnvIndividualCalls = RunPennCNV.out.individualCallFiles
     }
     else {
-        penncnvCalls = 'NO_FILE'
+        penncnvCalls = Channel.empty()
+        penncnvIndividualCalls = Channel.empty()
     }
     if(!params.skipQuantisnp) {
         RunQuantiSNP(    SignalToBaflrr.out.baflrrFile )
+        quantisnpCalls = RunQuantiSNP.out.callFile
+        quantisnpIndividualCalls = RunQuantiSNP.out.individualCallFiles
     }
     else {
-        quantisnpCalls = Channel.of('NO_FILE')
+        quantisnpCalls = Channel.empty()
+        quantisnpIndividualCalls = Channel.empty()
     }
-     if(!params.skipIpattern) {
+    if(!params.skipIpattern) {
         if(params.chrNames){
             RuniPattern(     SliceInputFiles.out.filteredInput )
+            ipatternCalls = RuniPattern.out.callFile
+            ipatternIndividualCalls = RuniPattern.out.individualCallFiles
                        }
         else {
             RuniPattern(     SamplesheetToGenderFile.out.inputFiles )
+            ipatternCalls = RuniPattern.out.callFile
+            ipatternIndividualCalls = RuniPattern.out.individualCallFiles
         }
     }
     else {
-        ipatternCalls = 'NO_FILE'
+        ipatternCalls = Channel.empty()
+        ipatternIndividualCalls = Channel.empty()
     }
     if(!params.skipRgada) {
         RunRGADA(        SignalToBaflrr.out.baflrrFile )
+        rgadaCalls = RunRGADA.out.callFile
+        rgadaIndividualCalls = RunRGADA.out.individualCallFiles
     }
     else {
-        rgadaCalls = 'NO_FILE'
+        rgadaCalls = Channel.empty()
+        rgadaIndividualCalls = Channel.empty()
     }
-
     if(!params.skipEnsemblecnv) {
         if(params.chrNames){
             inputfiles = SliceInputFiles.out.filteredInput
@@ -148,6 +164,8 @@ workflow {
                                 RunPennCNV.out.resultsDir,
                                 RunQuantiSNP.out.resultsDir,
                                 RuniPattern.out.resultsDir )
+            ensemblecnvCalls = RunEnsembleCNV.out.callFile                                
+            ensemblecnvIndividualCalls = RunEnsembleCNV.out.individualCallFiles
                        }
         else {
             inputfiles = SamplesheetToGenderFile.out.inputFiles
@@ -159,9 +177,26 @@ workflow {
                                 RunPennCNV.out.resultsDir,
                                 RunQuantiSNP.out.resultsDir,
                                 RuniPattern.out.resultsDir )
+            ensemblecnvCalls = RunEnsembleCNV.out.callFile
+            ensemblecnvIndividualCalls = RunEnsembleCNV.out.individualCallFiles
                        }
         }
     else {
-        ensemblecnvCalls = 'NO_FILE'
+        ensemblecnvCalls = Channel.empty()
+        ensemblecnvIndividualCalls = Channel.empty()
     }
+
+    // penncnvFiles =                      penncnvCalls.penncnv.collect(sort: true)
+    // quantisnpFiles =                    quantisnpCalls.quantisnp.collect(sort: true)
+    // ipatternFiles =                     ipatternCalls.ipattern.collect(sort: true)
+    // rgadaFiles =                        rgadaCalls.rgada.collect(sort: true)
+    // ensemblecnvFiles =                  ensemblecnvCalls.ensemblecnv.collect(sort: true)
+
+    resultFiles = penncnvCalls.concat( quantisnpCalls, ipatternCalls, ensemblecnvCalls, rgadaCalls )
+    // resultFiles = penncnvCalls.concat( quantisnpCalls, ipatternCalls, rgadaCalls )
+    individualResultFiles = penncnvIndividualCalls.concat( quantisnpIndividualCalls, ipatternIndividualCalls, ensemblecnvIndividualCalls, rgadaIndividualCalls )
+    // individualResultFiles = penncnvIndividualCalls.concat( quantisnpIndividualCalls, ipatternIndividualCalls, rgadaIndividualCalls )
+
+    RunBenchmark( resultFiles,
+                  individualResultFiles )
 }
