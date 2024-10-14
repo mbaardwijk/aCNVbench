@@ -47,3 +47,46 @@ An example showing the header of an Illumina final report file can be found belo
 
 ### Sample map file format
 An example showing a sample map file can be found below:
+
+> Index &emsp; Name &emsp; ID &emsp; Gender &emsp; Plate &emsp; Well &emsp; Group &emsp; Parent1 &emsp; Parent2 &emsp; Replicate &emsp; SentrixPosition
+>
+> 1 &emsp; 359146 &emsp; 5434203053_R01C01 &emsp; Female &emsp; WG0077073-AMP2 &emsp; A09 &emsp; &emsp; &emsp; &emsp; 5434203053_R01C01
+>
+> 2 &emsp; 359130 &emsp; 5434203053_R02C01 &emsp; Female &emsp; WG0077073-AMP2 &emsp; C09 &emsp; &emsp; &emsp; &emsp; 5434203053_R02C01
+
+### Probe map file format
+An example showing a probe map file can be found below:
+
+> Name  Chromosome &emsp; Position
+>
+> GA008510 &emsp; Y &emsp; 11771305
+> 
+> GA008524 &emsp; Y &emsp; 19612089
+>
+> GA008529 &emsp; Y &emsp; 19613392
+>
+> GA008532 &emsp; Y &emsp; 26872641
+
+## Run the workflow
+An example of how to run the workflow for detecting and benchmarking CNVs:
+```
+nextflow run main.nf --inputSheet {path to tab-separated SNP array input file} --goldstandardFile {path to gold standard file in VCF or tab-separated format} –-genome ‘hg18’
+```
+The benchmarking step kan be skipped using the '--skipBenchmark' parameter. Individual CNV calling methods can also be skipped, for example the '--skipPennCNV can be added to remove PennCNV from the pipeline execution.
+
+## Docker images
+All methods were installed in separate docker images. While running the workflow automatically pulls the Docker images from DockerHub if they are not found locally, they can also be retrieved as follows:
+```
+docker pull mbaardwijk/acnvbench:16-11-2023
+docker pull mbaardwijk/penncnv:18-10-2023
+docker pull mbaardwijk/quantisnp:19-10-2023
+docker pull mbaardwijk/ipattern:16-11-2023
+docker pull mbaardwijk/ensemblecnv:27-03-2024
+docker pull mbaardwijk/rgada:19-10-2023
+```
+
+## Collaborators
+- Myrthe van Baardwijk (Erasmus Medical Center Rotterdam)
+- Andrew Stubbs (Erasmus Medical Center Rotterdam)
+- Hangjia Zhao (University of Zurich)
+- Michael Baudis (University of Zurich)
