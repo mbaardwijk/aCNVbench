@@ -89,6 +89,7 @@ getAllCalls <- function(file.list, goldstandard.data){
   for(file in file.list){
     cnvs <- read.table(file, header=T, sep="\t")
     cnvs$Caller <- gsub(".mapped.id.txt", "", gsub(".results.txt", "", basename(file)))
+    cnvs$Caller <- gsub("results.", "", cnvs$Caller)
     cnvs$Caller <- gsub("rgada", "R-GADA", cnvs$Caller)
     cnvs$Caller <- gsub("penncnv", "PennCNV", cnvs$Caller)
     cnvs$Caller <- gsub("quantisnp", "QuantiSNP", cnvs$Caller)
@@ -121,6 +122,7 @@ goldstandard.filename <- opt$goldstandard
 # read the gold standard and caller files
 goldstandard.cnvs <- read.csv(goldstandard.filename, header=T)
 cnv.calls <- getAllCalls(caller.files, goldstandard.cnvs)
+print(unique(cnv.calls$Caller))
 
 # Execute analysis for all samples
 unique.cnv.calls <- unique(cnv.calls[c("Chr", "Start", "End", "Type", "Caller")])

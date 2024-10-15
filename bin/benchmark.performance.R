@@ -68,9 +68,7 @@ determineOverlap <- function(cnv.calls.gr, goldstandard.gr) {
 
 classifyCNVs <- function(cnv.calls.gr, goldstandard.gr, min.overlap){
   # All goldstandard CNVs not classified as TP will be classified as FN
-  print("hier")
   goldstandard.gr$Class <- "FN"
-  print("hier all?")
   if(length(cnv.calls.gr) > 0){
     # All called CNVs not classified as TP will be classified as FP
     cnv.calls.gr$Class <- "FP"
@@ -143,12 +141,9 @@ test.cnvs <- function(cnv.calls.gr, goldstandard.gr) {
   # Determine TPs FPs and FNs for each overlap fraction
   all.cnv.scores <- data.frame(matrix(ncol=5,nrow=0, dimnames=list(NULL, c("Sample_ID", "TP", "FP", "FN", "Overlap.t"))))
   for(min.overlap in OVERLAP.FRACTIONS){
-    print(min.overlap)
     cnv.results <- classifyCNVs(cnv.calls.gr, goldstandard.gr, min.overlap)
-    print(cnv.results)
     # Determine scores
     cnv.scores <- scoreSample(cnv.results)
-    print(cnv.scores)
     cnv.scores$Overlap.t <- min.overlap
     all.cnv.scores <- rbind(all.cnv.scores, cnv.scores)
   }
@@ -186,9 +181,6 @@ caller <- read.table(caller.filename, sep="\t", header=TRUE, stringsAsFactors = 
 goldstandard <- read.table(goldstandard.filename, sep="\t", header=TRUE, stringsAsFactors = FALSE)
 sample.id <- colnames(goldstandard)[ncol(goldstandard)]
 
-# print(head(caller))
-# print(head(goldstandard))
-
 # convert to chr notation with chr if not currently used and select autosomal chrs only
 if(! any(grepl("chr", goldstandard$Chr))){
   goldstandard$Chr <- paste0("chr", goldstandard$Chr)
@@ -197,10 +189,8 @@ if(! any(grepl("chr", caller$Chr))){
   caller$Chr <- paste0("chr", caller$Chr)
 }
 goldstandard <- subset(goldstandard, Chr %in% AUTOSOMAL.CHRS)
-#print(head(goldstandard))
 
 caller <- subset(caller, Chr %in% AUTOSOMAL.CHRS)
-#print(head(caller))
 
 # if any autosomal CNVs are found
 if(nrow(caller != 0)){
@@ -212,16 +202,12 @@ if(nrow(caller != 0)){
   #goldstandard <- parseCNVGenotype(goldstandard, sample.id)
   caller.gr <- makeGRangesFromDataFrame(caller, keep.extra.columns=T)
   goldstandard.gr <- makeGRangesFromDataFrame(goldstandard, keep.extra.columns=T)
+
   # separate deletions and duplications
   goldstandard.dels <- goldstandard.gr[goldstandard.gr$Type == "DEL",]
   goldstandard.dups <- goldstandard.gr[goldstandard.gr$Type == "DUP",]
-  caller.dels <- caller.gr[caller.gr$Type == "Loss",]
-  caller.dups <- caller.gr[caller.gr$Type == "Gain",]
-  
-  print("hier")
-  print(head(caller.gr))
-  print(head(caller.dels))
-  print(head(goldstandard.dels))
+  caller.dels <- caller.gr[caller.gr$Type == "DEL",]
+  caller.dups <- caller.gr[caller.gr$Type == "DUP",]
   
   # determine tp, fp, and fn for all catagories
   result.dels <- test.cnvs(caller.dels, goldstandard.dels)
@@ -231,9 +217,6 @@ if(nrow(caller != 0)){
   result.all$Overlap.t <- result.dels$Overlap.t
 
   # combine all catagories in a single dataframe and calculate sensitivity, precision and f1
-  print(head(result.dels))
-  print(head(result.dups))
-  print(head(result.all))
   results <- rbind(result.dels, result.dups, result.all)
 
   if(nrow(results) > 0){
@@ -242,7 +225,6 @@ if(nrow(caller != 0)){
     results$Precision = results$TP / (results$TP + results$FP)
     results$F1.score = 2*((results$Precision*results$Sensitivity)/(results$Precision+results$Sensitivity))
   }
-  print(head(results))
  
 } else { # if no autosomal cnvs are found
   results <- as.data.frame(matrix(ncol=9, nrow=0))

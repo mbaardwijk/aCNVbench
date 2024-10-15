@@ -132,7 +132,7 @@ plotCNVCount <- function(cnv.calls, color.palette, filename){
   scale_fill_viridis(name ="Number of samples", na.value="transparent")
 
   figure <- ggarrange(p1, p2, p3, ncol=3, common.legend = T, legend='right', labels=c("A", "B", "C"), label.y=0.05)
-  tiff(filename, units="cm", width=24, height=24, res=600)
+  tiff(filename, units="cm", width=28, height=14, res=600)
   grid.draw(figure)
   dev.off()
 }
@@ -143,6 +143,7 @@ getAllCalls <- function(file.list, goldstandard.data){
   for(file in file.list){
     cnvs <- read.table(file, header=T, sep="\t")
     cnvs$Caller <- gsub(".mapped.id.txt", "", gsub(".results.txt", "", basename(file)))
+    cnvs$Caller <- gsub("results.", "", cnvs$Caller)
     cnvs$Caller <- gsub("rgada", "R-GADA", cnvs$Caller)
     cnvs$Caller <- gsub("penncnv", "PennCNV", cnvs$Caller)
     cnvs$Caller <- gsub("quantisnp", "QuantiSNP", cnvs$Caller)
@@ -152,9 +153,11 @@ getAllCalls <- function(file.list, goldstandard.data){
     cnvs <- cnvs[,c("Sample_ID","Chr", "Start", "End", "Type", "Caller")]
     cnv.calls <- rbind(cnv.calls, cnvs)
   }
+  print(head(cnv.calls))
   # add gold standard cnvs
   samples <- unique(cnv.calls$Sample_ID)
   goldstandard.calls <- goldstandard.data[, COLUMN.NAMESS]
+  print(head(goldstandard.calls))
   colnames(goldstandard.calls) <- COLUMN.NAMESS
   goldstandard.calls <- subset(goldstandard.calls, Sample_ID %in% samples)
   goldstandard.calls$Chr <- gsub("chr", "", goldstandard.calls$Chr)
@@ -174,7 +177,9 @@ goldstandard.filename <- opt$goldstandard
 
 # read the gold standard and caller files
 goldstandard.cnvs <- read.csv(goldstandard.filename, header=T)
+print(head(goldstandard.cnvs))
 cnv.calls <- getAllCalls(caller.files, goldstandard.cnvs)
+print(unique(cnv.calls$Caller))
 
 # generate plots
 plotCNVCount(cnv.calls, light_rhg_cols, filename=paste0(opt$output,"_CNV_counts.tiff"))

@@ -45,10 +45,10 @@ plotPerformances <- function(performances, color.palette){
   performances <- performances[order(sapply(performances$Caller, function(x) which(x == c("PennCNV", "QuantiSNP", "iPattern", "EnsembleCNV", "R-GADA")))), ]
   performances$x <- seq(1, nrow(performances))
   print(performances)
-  p1 <- ggplot(performances, aes(x=Overlap.t, y=Average.Sensitivity, colour=Caller, fill=Caller, shape=Category)) + 
+  p1 <- ggplot(performances, aes(x=Overlap.t, y=Average.Recall, colour=Caller, fill=Caller, shape=Category)) + 
     geom_line() +
     geom_point(size=3) +
-    labs(x="Percentage of reciprocal overlap", y="Sensitivity", shape="Category") +
+    labs(x="Percentage of reciprocal overlap", y="Recall", shape="Category") +
     theme_classic() +
     theme(axis.title = element_text(size = 14), axis.text = element_text(size = 12), legend.text=element_text(size=12), legend.title=element_text(size=14), legend.position = "right") +
     scale_shape_manual(values = shapes) + 
@@ -86,10 +86,10 @@ plotPerformances <- function(performances, color.palette){
   grid.draw(g)
   dev.off()
   
-  p4 <- ggplot(performances, aes(x=Overlap.t, y=Overall.Sensitivity, colour=Caller, fill=Caller, shape=Category)) + 
+  p4 <- ggplot(performances, aes(x=Overlap.t, y=Overall.Recall, colour=Caller, fill=Caller, shape=Category)) + 
     geom_line() +
     geom_point(size=3) +
-    labs(x="Percentage of reciprocal overlap", y="Sensitivity", shape="Category") +
+    labs(x="Percentage of reciprocal overlap", y="Recall", shape="Category") +
     theme_classic() +
     theme(axis.title = element_text(size = 14), axis.text = element_text(size = 12), legend.text=element_text(size=12), legend.title=element_text(size=14), legend.position = "right") +
     scale_shape_manual(values = shapes) + 
@@ -126,6 +126,8 @@ plotPerformances <- function(performances, color.palette){
   g <- ggarrange(p4, p5, p6, ncol=3, nrow=1, common.legend = T, legend="right", labels=c("A", "B", "C"), label.y=0.04)
   grid.draw(g)
   dev.off()
+
+  write.table(performances, file="All.performances.txt", row.names=F, quote=F, sep="\t")
 }
 
 opt <- parse_args(OptionParser(option_list = option_list))
@@ -173,6 +175,10 @@ for(caller in caller.names){
 overall.performances <- overall.performances %>% mutate_at(c("Overlap.t", "Overall.Sensitivity", "Overall.Precision",
                                                              "Overall.F1.score", "Average.Sensitivity", "Average.Precision",
                                                              "Average.F1.score"), as.numeric)
+print(colnames(overall.performances))
+colnames(overall.performances) <- c("Caller", "Category", "Overlap.t", "Overall.Recall", "Overall.Precision",
+                                                             "Overall.F1.score", "Average.Recall", "Average.Precision",
+                                                             "Average.F1.score")
 plotPerformances(overall.performances, dark_rhg_cols)
 
 # # Execute analysis per super population
