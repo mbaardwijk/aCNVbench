@@ -1,6 +1,5 @@
 # aCNVbench
-
-![Pipeline Overview](https://github.com/mbaardwijk/aCNVbench/blob/main/Figure_1_workflow_figure.tif)
+<img src="Figure_1_workflow_figure.tif" width=600>
 A Nextflow workflow for detecting and benchmarking CNVs from SNP-array data. The workflow includes 5 different CNV calling methods - PennCNV, QuantiSNP, iPattern, EnsembleCNV and R-GADA. 
 
 ## Requirements
