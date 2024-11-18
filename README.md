@@ -1,9 +1,16 @@
 # aCNVbench
+
+![Pipeline Overview](https://github.com/mbaardwijk/aCNVbench/blob/main/Figure_1_workflow_figure.tif)
 A Nextflow workflow for detecting and benchmarking CNVs from SNP-array data. The workflow includes 5 different CNV calling methods - PennCNV, QuantiSNP, iPattern, EnsembleCNV and R-GADA. 
 
 ## Requirements
 - Nextflow version >= 20.xx.xx (tested on v23.04.1.5866)
 - Docker (tested on v19.03.15)
+
+## Citation
+This workflow was developed for our publication titled 'A systematic benchmark of copy number variation detection tools for high density SNP genotyping arrays'. Please use the following citation:
+
+van Baardwijk M.N., Heijnen L.S.E.M., Zhao H., Baudis M., Stubss A.P. (2024). A systematic benchmark of copy number variation detection tools for high density SNP genotyping arrays. Genomics, (in press). https://doi.org/10.1016/j.ygeno.2024.110962.
 
 ## Input data format
 The workflow requires an input sheet specifying the input SNP-array data. This input sheet is a tab-separated file that includes the following:
